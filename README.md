@@ -1,6 +1,6 @@
 # Quant-Finance
 
-Applying programming techniques on financial modeling 
+Applying programming techniques on financial problems
 
 Topics:
 - Portfolio Optimization
