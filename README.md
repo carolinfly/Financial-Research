@@ -2,6 +2,6 @@
 
 Applying programming techniques to solve economic and financial problems
 
-Topics:
+Topics covered:
 - Portfolio Optimization
 - Extract stock market data 
