@@ -1,0 +1,467 @@
+
+## Q1
+# load data
+data.x <- read.table("asset_data.txt", header=TRUE, sep=",", stringsAsFactors=FALSE)
+
+# turn the first column from a character string to a data
+data.x$date <- as.Date(data.x$date, format="%Y-%m-%d")
+head(data.x)
+
+# constructing a reduced data set with weekly data
+r <- data.x[which(data.x$fed.rate!="NA"),]
+
+# start and end dates of the reduced data set
+head(r)
+tail(r)
+dim(r) #613 4
+
+# Graph the federal funds interest rate as a time series plot(see Lecture 5)
+# connecting points with a line
+plot(r$date, r$fed.rate, type="l", las = TRUE, 
+     main ="Time Series Plot for Federal Funds Interest Rate", xlab="Date", ylab="Federal Funds Interest Rate (%)")
+# add x-axis
+# axis(side=1, at =...)
+dev.off()
+
+summary(r$fed.rate)
+# Min.   1st Qu.  Median  Mean    3rd Qu. Max. 
+# 0.050   0.130   0.280   1.553   2.740   5.300 
+
+##Q2 - split data set
+# constructing training set containing obs before 2014
+
+# cut-off dates
+#2759 2013-12-18    181.70    102.77     0.09
+#2772 2014-01-08    183.52    102.58     0.08
+training <- r[substr(r$date, start=1, stop = 4)  != '2014',]
+dim(training) #570   4
+rownames(training) <- 1:570
+head(training) 
+tail(training)
+
+# constructing test set containing obs in 2014
+test <- r[substr(r$date, start=1, stop = 4)  == '2014',]
+dim(test) #43  4
+rownames(test) <- 1:43
+head(test) 
+tail(test)
+  
+##Q3
+# calculating returns for both assets
+# adding empty columns for returns
+# Note: Denoting "ETF" to refer to long term treasury bonds asset.
+t_returns <- data.frame(training, "r_spy"=rep(NA, times=570), "r_ETF"=rep(NA,times=570))
+head(t_returns)
+
+for (i in 2:570){
+  # calculating returns for S&P 500 
+  t_returns$r_spy[i] <- (t_returns$close.spy[i]-t_returns$close.spy[i-1])/t_returns$close.spy[i-1]
+  # calculating returns for ETF
+  t_returns$r_ETF[i] <- (t_returns$close.tlt[i]-t_returns$close.tlt[i-1])/t_returns$close.tlt[i-1]
+}# end for loop
+
+# check data
+head(t_returns)
+
+# converting the federal funds interest rates (from percent form to  decimal form)
+t_returns$fed.rate <- t_returns$fed.rat/100
+head(t_returns)
+
+# constructing time series plots of the returns
+#par(mfrow=c(2, 1), mar=c(5, 5, 4, 2)+0.1)
+par(mfrow=c(1, 2))
+
+# check limits
+summary(t_returns$r_spy)
+#Min.   1st Qu.    Median      Mean   3rd Qu.      Max.      NA's 
+#-0.159800 -0.009075  0.003394  0.001484  0.013760  0.100400         1 
+summary(t_returns$r_ETF)
+#Min.    1st Qu.     Median       Mean    3rd Qu.       Max.       NA's 
+# -0.0673100 -0.0108900  0.0007427  0.0004561  0.0112700  0.0717400          1 
+
+# return plot for S&P 500
+plot(t_returns$date, t_returns$r_spy, type="l", las = TRUE, 
+     main ="Time Series Plot of the Returns for S&P 500", xlab="Date", ylab="Return for S&P 500", 
+     ylim =c(-0.16,0.11))
+# add horizontal line
+abline(h=0, col="firebrick", lwd=2, lty=2)
+
+# return plot for ETF
+plot(t_returns$date, t_returns$r_ETF, type="l", las = TRUE, 
+     main ="Time Series Plot of the Returns for\n Long Term Treasury Bonds", xlab="Date", ylab="Return for Long Term Treasury Bonds",
+     ylim =c(-0.16,0.11) )
+# add horizontal line
+abline(h=0, col="firebrick", lwd=2, lty=2)
+dev.off()
+             
+## Q4
+# constructing normal quantile plots (see Lecture 11)
+# to check if returns are normally distributed (assumption)
+par(mfrow=c(1, 2))
+# Normal Q-Q Plot for returns of S&P 500 using the training set
+qqnorm(t_returns$r_spy, las=TRUE, main="Normal Q-Q Plot for S&P 500", pch=20,ylim=c(-0.16,0.11))
+qqline(t_returns$r_spy)
+
+# Normal Q-Q Plot for returns of ETF using the training set
+qqnorm(t_returns$r_ETF, las=TRUE, main="Normal Q-Q Plot for Long Term Treasury Bonds", pch=20, ylim=c(-0.16,0.11))
+qqline(t_returns$r_ETF)
+dev.off()
+
+##Q5
+# correlation between the two returns
+cor(t_returns$r_spy, t_returns$r_ETF, use="complete.obs") # the 1st and 2nd arguments are interchangeable, the same result
+# -0.3439013
+
+# the rolling-window correlation
+dim(t_returns) #570   6
+rownames(t_returns) <- 1:570 # row names are the week orders
+head(t_returns)
+tail(t_returns)
+
+# the first point -> week 2-25, timing is the last day of the window, i.e., line 25
+cor(t_returns$r_spy[2:25], t_returns$r_ETF[2:25], use="complete.obs") # -0.5054171
+
+# adding a column called "rollingCor" to the data frame r_returns
+t_rolcor <- data.frame(t_returns, "rollingCor"=rep(NA, times=570))
+head(t_rolcor)
+
+# inserting rolling correlations to the column added using for loop
+# number of rolling correlations
+570-25+1 #546
+
+for (i in 1:546){
+  # calculating rolling correlations -> special case
+  # t_rolcor$rollingCor[25] <- cor(t_returns$r_spy[2:25], t_returns$r_ETF[2:25], use="complete.obs")
+  # general case
+  t_rolcor$rollingCor[(24+i)] <- cor(t_returns$r_spy[(i+1):(24+i)], t_returns$r_ETF[(i+1):(24+i)])
+}# end for loop
+# week 25 -> -0.5036154091
+
+# check data
+tail(t_rolcor)
+cor(t_returns$r_spy[(569-23):569], t_returns$r_ETF[(569-23):569], use="complete.obs") #0.1388847
+cor(t_returns$r_spy[(568-23):568], t_returns$r_ETF[(568-23):568], use="complete.obs") #0.243013
+
+# plot
+# ylim
+summary(t_rolcor$rollingCor)
+#Min.  1st Qu.   Median     Mean  3rd Qu.     Max.     NA's 
+#-0.83260 -0.62580 -0.30470 -0.33620 -0.09222  0.24300       24 
+
+plot(t_rolcor$date, t_rolcor$rollingCor, type="l", las = TRUE, 
+     main ="Time Series Plot of the Rolling Correlation", xlab="Date", ylab="Rolloing Correlation",
+     ylim=c(-0.9,0.3))
+# add horizontal line
+abline(h=0, col="grey", lwd=2, lty=2)
+dev.off()
+
+##Q6 - computing sharp ratios
+# constructing a data frame containing new columns -> e & g for both assets
+t_SR <- data.frame(t_rolcor, "e_sp"=rep(NA, times=570),"e_ETF"=rep(NA, times=570),
+                   "g_sp"=rep(NA,times=570),"g_ETF"=rep(NA,times=570))
+head(t_SR)
+tail(t_SR)
+
+# save.image(file='hw 5.RData')
+
+# STEP 1: computing excess returns
+# special case t=2
+t_SR$r_spy[2] - (t_SR$fed.rate[1]/52) # 0.01082077 <- t_SR$e_sp[2]
+t_SR$r_ETF[2]- (t_SR$fed.rate[1]/52) #-0.007013158
+t_SR$r_spy[570] - (t_SR$fed.rate[569]/52) # 0.01665682
+t_SR$r_ETF[570]- (t_SR$fed.rate[569]/52) # -0.003218084
+
+# filling the columns of excess returns -> e_sp & e_ETF
+for (i in 2:570){
+  # calculating excess returns for S&P 500 
+  t_SR$e_sp[i] <- t_SR$r_spy[i]- (t_SR$fed.rate[(i-1)]/52)
+  # excess returns for ETF
+  t_SR$e_ETF[i] <- t_SR$r_ETF[i]- (t_SR$fed.rate[(i-1)]/52)
+}# end for loop
+head(t_SR)
+tail(t_SR)
+
+# STEP 2: computing excess returns index g
+# setting benchmark
+t_SR$g_sp[1] <- 100
+t_SR$g_ETF[1] <- 100
+# special case t=2
+# t_SR$g_sp[2]
+(t_SR$g_sp[1])*(1 + t_SR$e_sp[2]) # 101.0821
+# t_SR$g_ETF[2]
+(t_SR$g_ETF[1])*(1 + t_SR$e_ETF[2]) # 99.29868
+
+(t_SR$g_sp[569])*(1 + t_SR$e_sp[570]) #165.6764
+(t_SR$g_ETF[569])*(1 + t_SR$e_ETF[570]) #98.44691
+
+# filling the columns of excess returns index -> g_sp & g_ETF
+for (i in 2:570){
+  # calculating excess returns index for S&P 500 
+  t_SR$g_sp[i] <- (t_SR$g_sp[(i-1)])*(1 + t_SR$e_sp[i])
+  # excess returns index for ETF
+  t_SR$g_ETF[i] <- (t_SR$g_ETF[(i-1)])*(1 + t_SR$e_ETF[i])
+}# end for loop
+
+head(t_SR)
+tail(t_SR)
+
+# STEP 3: computing the number of years of data -> n
+n <- (nrow(t_SR) - 1)/52
+n #10.94231
+
+# STEP 4: computing the compounded annual growth rate -> CAGR
+CAGR_sp <- (t_SR$g_sp[570]/t_SR$g_sp[1])^(1/n) - 1
+CAGR_sp #0.04721991
+
+CAGR_ETF <- (t_SR$g_ETF[570]/t_SR$g_ETF[1])^(1/n) - 1
+CAGR_ETF #-0.001429458
+
+# STEP 5: computing the annualized volatility -> v
+v_sp <- sd(t_SR$e_sp, na.rm = TRUE) * sqrt(52) # 0.1682114
+v_ETF <- sd(t_SR$e_ETF, na.rm = TRUE) * sqrt(52) # 0.1304339
+
+# STEP 6: computing the sharp raton -> SR
+SR_sp <- CAGR_sp/v_sp #0.2807176
+SR_ETF <- CAGR_ETF/v_ETF #-0.01095925
+
+## Q7
+
+# inputs
+# x <- a vector of portfolio weights, between 0 and 1
+# r_sp <- a vector of returns for asset 1 (S&P 500)
+# r_0 <- a vector of returns for asset 2 (treasury bonds)
+# y <- a vector of the corresponding weekly federal funds interest rates
+
+# outputs
+# a vector of sharp ratios, one for each porfolio weight in x (x is a vector of portfolio weights)
+
+# suppose x<- c(0.3, 0.2. 0.5)
+f7 <- function(x, r_sp, r_0, y){
+  # constructing needed vectors 
+  SR <- rep(NA, times=length(x))
+  v <- rep(NA, times=length(x))
+  
+  # compute n
+  n <- (length(r_sp)-1)/52
+
+  # computing elements of SR (SR[i]) for each given portfolio mix x[i]
+  for (i in 1:length(x)) { # looping through each portfolio mix in vector x
+    r_mix <- rep(NA, times= length(r_sp)) # r_mix[1] = NA
+    e <- rep(NA, times= length(r_sp)) #e[1]=NA
+    g <- rep(NA, times= length(r_sp))
+    g[1] <- 100
+    
+    for (j in 2: length(r_sp)){
+      # construct & compute the returns for the portfolio -> vector r_mix
+      # x: allocation to risky asset; r_sp[1] & r_0[1] are NA
+      r_mix[j] <- x[i]*r_sp[j] + (1-x[i])*r_0[j] # each j for this particular portfolio mix
+      # compute excess returns -> e
+      e[j] <- r_mix[j] - y[(j-1)]/52 # using r_mix[j] just computed
+      # compute excess returns index <- g
+      g[j] <- g[(j-1)]*(1 + e[j])
+    } # end inner for loop
+    
+    # compute the annualized volatility <- v; looping through i
+    v[i] <- sqrt(52) * sd(e, na.rm=TRUE)
+    # compute CAGR
+    CAGR <- (g[length(r_sp)]/g[1])^(1/n) - 1 
+    # compute SR
+    SR[i] <- CAGR/v[i]
+  }  # end outer for loop
+ 
+   # return sharp ratio vector SR
+  return("Sharp Ratio"=SR)
+} # end function
+
+# input training set t_SR
+x <- seq(from=0, to=1, by = 0.01)
+length(x) #101
+r_sp <- t_SR$r_spy
+r_0 <- t_SR$r_ETF
+y <- t_SR$fed.rate
+
+# output sharp ratio vector using the above function
+SR_7 <- f7(x, r_sp, r_0, y)
+head(SR_7)
+#[1] -0.0109592526 -0.0050894715  0.0009108895  0.0070445867
+#[5]  0.0133142263  0.0197222266
+
+# plot sharp ratio retrieved
+curve(f7(x, r_sp, r_0, y), from=0, to=1, las=TRUE, 
+      main="Sharp Ratio Plot Corresponding to Portfolio Mixes",
+      xlab="Portfolio Weights", ylab="Sharp Ratio") # from, to ->x-axis 
+dev.off()
+# NA in r_0 and r_sp
+
+# or using plot()
+plot(SR_7, type='l')
+
+# finding the optimal portfolio
+max(SR_7) #0.3633928
+which.max(SR_7) #
+x[which.max(SR_7)] # x[61] = 0.6 -> 60% of the funds investing in S&P500
+
+## Q8
+# determining optimum weight for each asset
+f <- function(x){
+  r_sp <- t_SR$r_spy
+  r_0 <- t_SR$r_ETF
+  y <- t_SR$fed.rate
+  
+  # constructing needed vectors 
+  SR <- rep(NA, times=length(x))
+  v <- rep(NA, times=length(x))
+  
+  # compute n
+  n <- (length(r_sp)-1)/52
+  
+  # computing elements of SR (SR[i]) for each given portfolio mix x[i]
+  for (i in 1:length(x)) { # looping through each portfolio mix in vector x
+    r_mix <- rep(NA, times= length(r_sp)) # r_mix[1] = NA
+    e <- rep(NA, times= length(r_sp)) #e[1]=NA
+    g <- rep(NA, times= length(r_sp))
+    g[1] <- 100
+    
+    for (j in 2: length(r_sp)){
+      # construct & compute the returns for the portfolio -> vector r_mix
+      # x: allocation to risky asset; r_sp[1] & r_0[1] are NA
+      r_mix[j] <- x[i]*r_sp[j] + (1-x[i])*r_0[j] # each j for this particular portfolio mix
+      # compute excess returns -> e
+      e[j] <- r_mix[j] - y[(j-1)]/52 # using r_mix[j] just computed
+      # compute excess returns index <- g
+      g[j] <- g[(j-1)]*(1 + e[j])
+    } # end inner for loop
+    
+    # compute the annualized volatility <- v; looping through i
+    v[i] <- sqrt(52) * sd(e, na.rm=TRUE)
+    # compute CAGR
+    CAGR <- (g[length(r_sp)]/g[1])^(1/n) - 1 
+    # compute SR
+    SR[i] <- CAGR/v[i]
+  }  # end outer for loop
+  
+  # return sharp ratio vector SR
+  return("Sharp Ratio"=SR)
+} # end function
+
+optimize(f, lower=0.4, upper=0.7, maximum=TRUE) # allowing only one variable
+#$maximum
+#[1] 0.595827
+
+#$objective
+#[1] 0.3634139
+
+# overall Sharp ratio
+f(0.595827) #0.3634139 -> objective
+# investing in the S&P 500 alone
+f(1) #0.2807176
+# investing in the treasury bonds alone
+f(0) #-0.01095925
+
+# optimum proportion to treasury bonds
+1-0.595827 #0.404173
+
+## Q9 - test set
+head(test)
+tail(test)
+dim(test)#43  4
+# coverting the federal funds interest rate
+test$fed.rate <- test$fed.rate/100
+# constructing columns of returns
+test <- data.frame(test, "r_sp"=rep(NA, times=nrow(test)),"r_ETF"=rep(NA, times=nrow(test)),
+                   "r_combo"=rep(NA,times=nrow(test)))
+# computing return series
+for (i in 2:nrow(test)){
+  # calculating returns for S&P 500 
+  test$r_sp[i] <- (test$close.spy[i] - test$close.spy[(i-1)])/test$close.spy[(i-1)]
+  # calculating returns for ETF
+  test$r_ETF[i] <- (test$close.tlt[i] - test$close.tlt[(i-1)])/test$close.tlt[(i-1)]
+}# end for loop
+
+# check data
+(test$close.tlt[43] - test$close.tlt[(42)])/test$close.tlt[(42)] #-0.01002735
+
+# constructing columns of excess returns index
+test <- data.frame(test, "e_sp"=rep(NA, times=nrow(test)),"e_ETF"=rep(NA, times=nrow(test)),
+                   "e_combo"=rep(NA,times=nrow(test)),
+                   "g_sp"=rep(NA, times=nrow(test)), "g_ETF"=rep(NA, times=nrow(test)),
+                   "g_combo"=rep(NA,times=nrow(test)))
+
+# filling the columns of excess returns -> e
+for (i in 2:nrow(test)){
+  # calculating excess returns for S&P 500 
+  test$e_sp[i] <- test$r_sp[i]- (test$fed.rate[(i-1)]/52)
+  # excess returns for ETF
+  test$e_ETF[i] <- test$r_ETF[i]- (test$fed.rate[(i-1)]/52)
+}# end for loop
+# check data
+test$r_sp[43]- (test$fed.rate[(42)]/52) #0.02811077
+
+# filling the columns of excess returns index -> g
+# duplicating test
+test2 <- test
+rownames(test2) <- 1: nrow(test2)
+for (i in 2:nrow(test2)){
+  # giving initial value
+  test2$g_sp[1] <- 100
+  test2$g_ETF[1] <- 100
+  
+  # calculating excess returns index for S&P 500 
+  test2$g_sp[i] <- (test2$g_sp[(i-1)])*(1 + test2$e_sp[i])
+  # excess returns index for ETF
+  test2$g_ETF[i] <- (test2$g_ETF[(i-1)])*(1 + test2$e_ETF[i])
+}# end for loop
+
+# check data
+# now using test2 in the following steps
+tail(test2)
+(test2$g_ETF[(42)])*(1 + test2$e_ETF[43]) #116.376
+
+# computing r_combo
+ratio <- optimize(f, lower=0.4, upper=0.7, maximum=TRUE)$maximum
+(0.6*(1+test2$r_sp[2])+0.4*(1+test2$r_ETF[2])-1)/1
+
+for (i in 2:nrow(test2)){
+  test2$r_combo[i] <- (ratio*(1+test2$r_sp[i])+(1-ratio)*(1+test2$r_ETF[i])-1)/1
+} # end for loop
+ 
+# computing e_combo - using test2 with converted weekly fed.rate
+for (i in 2:nrow(test2)){
+  test2$e_combo[i] <- test2$r_combo[i] - test2$fed.rate[i]
+} # end for loop
+
+# computing g_combo
+test2$g_combo[1] <- 100
+
+for (i in 2:nrow(test2)){
+  test2$g_combo[i] <- test2$g_combo[(i-1)]*(1 + test2$e_combo[i])
+} # end for loop
+
+# check data
+head(test2)
+
+# plot the excess returns index - test2
+# check ylim
+summary(test2$g_sp) # 95.44, 109.30 
+summary(test2$g_ETF) # 100, 119.4
+summary(test2$g_combo) # 99.04, 111.7
+
+plot(test2$date, test2$g_sp, col='limegreen', xlab = "Date", ylab = "Excess Returns Index",
+     main = "Time Series for Excess Returns Index in Test Data Set", las=TRUE, ylim = c(95, 120),
+     cex.main=1.2, cex.axis=0.9, cex.lab=1.1, type="l")
+# axis(side=1, at = c(Jan,Mar,May,Jul,Sep,Nov), c("Jan 2014", "Mar 2014", "May 2014", "Jul 2014", "Sep 2014", "Nov 2014"))
+# plotting on the same graph
+lines(test2$date, test2$g_ETF, col="purple")
+lines(test2$date, test2$g_combo, col="red")
+# add benchmark
+abline(h= 100, col="grey", lwd=2, lty=2)
+# add legend
+legname <- c("Treasury Bonds", "Portfolio", "S&P500")
+legend("topleft", bty= 'n', cex= 0.9, 
+       col = c('purple','red','limegreen'), # col; lwd=2; fill-> filled colored boxes in legend
+      legend = legname, lwd=2)
+dev.off()
+
+## Q10 - using test set
+# looking at the last row, columns g_sp, g_ETF, g_combo
+tail(test2)
