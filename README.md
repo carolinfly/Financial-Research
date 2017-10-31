@@ -6,4 +6,4 @@ Topics covered:
 - Portfolio Optimization in R
 - Portfolio Optimization in Python
 - Extract stock market data 
-- Prediction of Stock Prices Using Regression Techniques
+- Prediction of Stock Prices Using Regression Models
