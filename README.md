@@ -8,3 +8,4 @@ Topics covered:
 - Extract stock market data (WIP)
 - Credit Card Fraud Detection
 - Prediction of stock prices using regression models
+- Inventory Management System with Oracle SQL
