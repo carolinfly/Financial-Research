@@ -1,0 +1,120 @@
+# Date: 12/7/2017
+# Author: Shimeng (Carol) Lin
+# Project: Prediction of Stock Closing Prices Using Regression Models - data processing in R
+
+data <- read.table("data.csv", header=TRUE, sep=",", stringsAsFactors=FALSE, quote="")
+#remove Adj_Close
+data$Adj_Close <- NULL 
+head(data)
+dim(data) #4392    6
+
+#index Date
+data.2 <- data.frame(data, "DateIdx"=1:nrow(data), 
+                     momt = rep(NA, times=nrow(data)), ROC = rep(NA, times=nrow(data)),
+                     williams = rep(NA, times=nrow(data)), Strength = rep(NA, times=nrow(data)),
+                     pUp = rep(NA, times=nrow(data)), pDown = rep(NA, times=nrow(data)),
+                     Dev = rep(NA, times=nrow(data)), DChg = rep(NA, times=nrow(data)),
+                     ClsNext = rep(NA, times=nrow(data)))
+
+## Computing other calculated features: (Limitation:day gap, weekends not opening, days)
+
+# 1. momentum (current close - previous close)
+
+# 2. Rate of changes: 
+#    ROC = (current closing price - previous Closing price)/previous Closing price x 100
+
+# 3. Williams %R (10 days)
+#    William = (Highest High - Closing Price)/(Highest High - Lowest Low) x (-100)
+
+# 4. Relative Strength Index = Avg(PriceUp)/( Avg(PriceUP) + Avg(PriceDown) )*100
+# Where: PriceUp(t) = 1*(Price(t)-Price(t-1))    <- if (Price(t)- Price(t-1)) > 0
+#        PriceDown(t) = -1*(Price(t)-Price(t-1)) = Price(t-1)-Price(t)  <- if (Price(t)- Price(t-1)) < 0
+
+# 5. Deviation between high and low during the day
+#    Dev = high today - low today
+
+# 6. DChg = Close today - Open today
+
+for (i in 2:nrow(data.2)){
+  # calculating momentum 
+  data.2$momt[i] <- data.2$Close[i] - data.2$Close[i-1]
+
+  # calculating rate of change 
+  data.2$ROC[i] <- ((data.2$Close[i] - data.2$Close[i-1])/data.2$Close[i-1])*100 
+  
+  # calculating Williams %R: 10 days
+  data.2$williams[i] <- (max(data.2[i:(i+13),]$High) - data.2$Close[i])/
+                        ( max(data.2[i:(i+13),]$High) - min(data.2[i:(i+13),]$Low))*(-100)
+  # calculating Dev
+  data.2$Dev[i] <- data.2$High[i] - data.2$Low[i]
+  
+  # calculating DChg
+  data.2$DChg[i] <- data.2$Close[i] - data.2$Open[i]
+  
+  # attach column of ClsNext
+  data.2$ClsNext[i] <- data.2$Close[i+1]
+  
+  if( (data.2$Close[i] - data.2$Close[i-1]) > 0) { #pUp
+    data.2$pUp[i] <- 1*(data.2$Close[i] - data.2$Close[i-1])
+  } # end if statement
+  
+  if( (data.2$Close[i] - data.2$Close[i-1]) < 0) { #pDown
+    data.2$pDown[i] <- -1*(data.2$Close[i] - data.2$Close[i-1])
+  } # end if statement 
+  
+}# end for loop
+
+# compute the 1st entry of williams
+data.2$williams[1] <- (max(data.2[1:14,]$High) - data.2$Close[1])/
+  ( max(data.2[1:14,]$High) - min(data.2[1:14,]$Low) )*(-100)
+
+# calculating RSI: 14 days
+for (i in 2:nrow(data.2)){   
+  data.2$Strength[i] <- mean(data.2[i:(i+13),]$pUp, na.rm=TRUE)/
+    ( mean(data.2[i:(i+13),]$pUp, na.rm=TRUE) + mean(data.2[i:(i+13),]$pDown, na.rm=TRUE) )*100
+} # end for loop
+
+# fill in ClsNest[1]
+data.2$ClsNext[1] <- data.2$Close[2]
+
+head(data.2)
+tail(data.2)
+
+
+## Finalize dataset
+y <- data.2
+y$pUp <- NULL
+y$pDown <- NULL
+y$Date <- NULL
+
+# Replace NaN
+y$Strength[y$Strength=="NaN"] <- NA 
+
+# remove rows with NAs
+y.compl <- y[complete.cases(y), ]
+
+# Final Dataset: y.compl
+dim(y.compl) #4378   13
+head(y.compl)
+tail(y.compl)
+
+# write to csv file
+write.csv(y.compl, file = "temp.csv")
+read.csv("temp.csv", row.names = c( "Open", "High", "Low", "Close", "Volume", "DateIdx", "momt", "ROC",     
+                                   "williams", "Strength", "Dev", "DChg", "ClsNext"))
+
+cor(y.compl[,c("ClsNext", "Close", "momt", "ROC",     
+              "williams", "DChg")])
+
+par(mar=c(5, 5, 4, 2)+0.1)
+pairs(y.compl[,c(13, 4, 7, 8, 9, 12)], col="black")
+
+
+# avrg daily change
+mean(y.compl$Close - y.compl$ClsNext) #-0.02517231
+
+
+save.image('v_1206')
+load('v_1206')
+
+
